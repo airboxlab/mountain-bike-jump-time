@@ -25,8 +25,6 @@ A bike rides along a 1-D track and must decide *when* to jump in order to land o
     <img
       alt="replay"
       src="/assets/images/episode_render_1.gif"
-      width="300"
-      height="300"
     >
   </picture>
 </p>
