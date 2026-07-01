@@ -13,6 +13,14 @@
       height="300"
     >
   </picture>
+</p>
+
+A toy [Farama Gymnasium](https://gymnasium.farama.org/) environment: a stochastic *jump-timing* problem in the
+spirit of "optimal start" problem with random latent environment configuration that can be fully enumerated for true policy value computation.
+
+A bike rides along a 1-D track and must decide *when* to jump in order to land on a small target platform surrounded by two gaps. The agent only controls the binary action `{0: continue, 1: jump}`; the first `1` is an irreversible switch action. Bike speed evolves according to the local slope.
+
+<p align="center">
   <picture>
     <img
       alt="replay"
@@ -22,11 +30,6 @@
     >
   </picture>
 </p>
-
-A toy [Farama Gymnasium](https://gymnasium.farama.org/) environment: a stochastic *jump-timing* problem in the
-spirit of "optimal start" problem with random latent environment configuration that can be fully enumerated for true policy value computation.
-
-A bike rides along a 1-D track and must decide *when* to jump in order to land on a small target platform surrounded by two gaps. The agent only controls the binary action `{0: continue, 1: jump}`; the first `1` is an irreversible switch action. Bike speed evolves according to the local slope.
 
 This environment can be useful for **Off-Policy Evaluation (OPE)** estimators evaluation: the latent randomness is *finite and discrete*, which makes the true value of any policy `V(π) = Σ_ω p(ω) · G(π, ω)` exactly computable by enumeration, ideal for benchmarking IS / DM / hybrid OPE estimators.
 
