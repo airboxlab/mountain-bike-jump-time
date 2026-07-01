@@ -13,6 +13,14 @@
       height="300"
     >
   </picture>
+  <picture>
+    <img
+      alt="replay"
+      src="/assets/images/episode_render_1.gif"
+      width="300"
+      height="300"
+    >
+  </picture>
 </p>
 
 A toy [Farama Gymnasium](https://gymnasium.farama.org/) environment: a stochastic *jump-timing* problem in the

@@ -2,3 +2,4 @@ node_modules
 .pyc
 .idea/
 .poetry-version
+**/__pycache__/
