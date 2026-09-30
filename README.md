@@ -43,7 +43,7 @@ Note: this environment was developped as a way to test custom estimators develop
 
 ## Install
 
-Requires **Python 3.12** and **Poetry 1.8.4**.
+Requires **Python 3.12**.
 
 ```bash
 poetry install
