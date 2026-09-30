@@ -24,7 +24,7 @@ A bike rides along a 1-D track and must decide *when* to jump in order to land o
   <picture>
     <img
       alt="replay"
-      src="/assets/images/episode_render_1.gif"
+      src="/assets/images/scenic_preview.gif"
     >
   </picture>
 </p>
@@ -82,40 +82,84 @@ value = sum(p * return_for(omega, switch_time=3)
 
 ### Visualizing a rollout
 
-Two backends are available. The default `matplotlib` renderer produces
-static PNG figures; the `pygame` renderer produces animated GIFs (and can
-open an interactive window with `mode="human"`).
+The Pygame renderer draws a stylized mountain-bike landscape at **30 FPS**:
+
+For fun:
+
+- Three procedural themes: **alpine**, **desert**, and **dusk**, with seeded variation.
+- Layered mountain parallax, forests/cacti, moving clouds, birds, stars, and waving flags.
+- A tracking camera, articulated rider, rotating wheels, pedaling, dust, and landing compression.
+- Real gaps and a highlighted landing platform, with distinct success and fall animations.
+- A compact speed/progress/reward HUD; optional agent-visibility and trajectory overlays.
+
+Try it immediately from the project root (after installing the project dependencies):
+
+```bash
+poetry run python -m mountain_bike_jump_time.demo --theme alpine --output episode.gif
+poetry run python -m mountain_bike_jump_time.demo --never-jump --output fall.gif
+```
+
+The demo enumerates jump times and chooses the highest-return one for its track (not based on a trained policy).
+Some tracks cannot be successfully jumped. Override with `--jump-step 0` or `--never-jump` to inspect failures.
+
+#### Gym rendering
+
+Gym uses the scenic Pygame renderer by default.
 
 ```python
-from mountain_bike_jump_time import render_episode
+import gymnasium as gym
+import mountain_bike_jump_time
+from mountain_bike_jump_time import RenderConfig
 
-# Static matplotlib figure (default).
-render_episode(
-    latent=env.latent,
-    config=env.config,
-    slope_per_cell=env._slope_per_cell,
-    trajectory=env.trajectory,
-    jump_time=env._jump_time,
-    landing_position=env._landing_position,
-    reward_components=env.reward_components,
-    save_path="rollout.png",
+env = gym.make(
+    "MountainBikeJump-v0",
+    render_mode="human",  # or "rgb_array" for headless frames
+    render_config=RenderConfig(theme="auto", seed=42, show_debug=False),
 )
+obs, info = env.reset(seed=0)
+try:
+    done = False
+    while not done:
+        obs, reward, terminated, truncated, info = env.step(env.action_space.sample())
+        done = terminated or truncated
+finally:
+    env.close()
+```
 
-# Animated pygame rendering written as a GIF.
+Pass `renderer="matplotlib"` to retain the original diagnostic Gym view.
+
+#### Episode replay and export
+
+`render_episode()` uses **matplotlib default** for static PNG exports and evaluation code.
+Select `renderer="pygame"` for the animated scenery.
+Use `.gif` for full animation, `.png` for a final still, or `mode="human"` for playback. An RGB-only call renders just the final frame.
+
+```python
+from mountain_bike_jump_time import RenderConfig, render_episode
+
 render_episode(
-    latent=env.latent,
-    config=env.config,
-    slope_per_cell=env._slope_per_cell,
-    trajectory=env.trajectory,
-    jump_time=env._jump_time,
-    landing_position=env._landing_position,
-    reward_components=env.reward_components,
-    save_path="rollout.gif",
+    latent=env.unwrapped.latent,
+    config=env.unwrapped.config,
+    slope_per_cell=env.unwrapped._slope_per_cell,
+    trajectory=env.unwrapped.trajectory,
+    jump_time=env.unwrapped._jump_time,
+    landing_position=env.unwrapped._landing_position,
+    reward_components=env.unwrapped.reward_components,
     renderer="pygame",
+    render_config=RenderConfig(
+        theme="alpine", seed=42, width=960, height=540, fps=30,
+        show_hud=True, show_debug=False, step_seconds=0.32, hold_seconds=0.9,
+    ),
+    save_path="rollout.gif",
 )
 ```
 
-The training CLI exposes the same choice via `--viz-renderer matplotlib|pygame`.
+The training CLI's existing `--viz-renderer pygame` option also uses the enhanced
+renderer, with automatic scenery. Prefer `--viz-best --viz-worst` for quick visual
+checks; exporting every enumerated episode as an animation is much more expensive.
+
+With `theme="auto"` and `seed=None`, the latent configuration determines both the
+theme and scenery. Theme and scenery have no impact on the dynamics or reward.
 
 ### Training a PPO policy with Ray RLlib
 

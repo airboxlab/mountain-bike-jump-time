@@ -23,7 +23,10 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass
 from itertools import product
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from mountain_bike_jump_time.scenic import RenderConfig
 
 import gymnasium as gym
 import numpy as np
@@ -38,8 +41,8 @@ from gymnasium import spaces
 class EnvConfig:
     """Configuration for :class:`MountainBikeJumpEnv`.
 
-    All choice tuples define the *finite discrete* support of the latent
-    randomness, which keeps the latent space enumerable.
+    All choice tuples define the *finite discrete* support of the latent randomness, which
+    keeps the latent space enumerable.
     """
 
     # Episode shape
@@ -179,17 +182,31 @@ class MountainBikeJumpEnv(gym.Env):
         ``info["reward_components"]``.
     """
 
-    metadata = {"render_modes": ["human", "rgb_array"]}
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
     # ------------------------------------------------------------------ init
     def __init__(
         self,
         config: EnvConfig | None = None,
         render_mode: str | None = None,
+        renderer: str = "pygame",
+        render_config: RenderConfig | None = None,
     ) -> None:
         super().__init__()
         self.config: EnvConfig = config if config is not None else EnvConfig()
+        if render_mode not in (None, "human", "rgb_array"):
+            raise ValueError("render_mode must be None, human or rgb_array")
+        if renderer not in ("pygame", "matplotlib"):
+            raise ValueError("renderer must be pygame or matplotlib")
         self.render_mode = render_mode
+        self.renderer = renderer
+        self.render_config = render_config
+        self.metadata = dict(
+            type(self).metadata, render_fps=render_config.fps if render_config else 30
+        )
+        self._render_scene = None
+        self._render_key = None
+        self._render_time = None
 
         k = self.config.visibility_k
         obs_dim = 3 + 2 * k
@@ -238,6 +255,8 @@ class MountainBikeJumpEnv(gym.Env):
         options: dict[str, Any] | None = None,
     ) -> tuple[np.ndarray, dict[str, Any]]:
         super().reset(seed=seed)
+        self._render_key = None
+        self._render_time = None
 
         if options is not None and "latent" in options:
             latent = options["latent"]
@@ -262,6 +281,8 @@ class MountainBikeJumpEnv(gym.Env):
 
         obs = self._build_observation()
         self._log_step(obs=obs, action=None, reward=0.0)
+        if self.render_mode == "human":
+            self.render()
         return obs, self._build_info()
 
     def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
@@ -311,30 +332,80 @@ class MountainBikeJumpEnv(gym.Env):
         self._done = terminated or truncated
         obs = self._build_observation()
         self._log_step(obs=obs, action=int(action), reward=float(reward))
+        if self.render_mode == "human":
+            self.render()
         return obs, float(reward), terminated, truncated, self._build_info()
 
-    def render(self):  # pragma: no cover - thin wrapper around visualization
+    def render(self):
+        """Return the current RGB frame or animate newly recorded steps in a window.
+
+        Full replay/export is available through ``render_episode``. The default scenic
+        renderer keeps a human window alive until ``close()``; repeated RGB calls never open
+        a display or replay the entire episode.
+        """
         if self.render_mode is None:
             return None
-        from mountain_bike_jump_time.visualization import render_episode
+        if self._latent is None:
+            raise RuntimeError("reset() must be called before render()")
+        if self.renderer == "matplotlib":
+            from mountain_bike_jump_time.visualization import render_episode
 
-        return render_episode(
-            latent=self._latent,
-            config=self.config,
-            slope_per_cell=self._slope_per_cell,
-            trajectory=self._trajectory,
-            jump_time=self._jump_time,
-            landing_position=self._landing_position,
-            reward_components=self._reward_components,
-            mode=self.render_mode,
-        )
+            return render_episode(
+                latent=self._latent,
+                config=self.config,
+                slope_per_cell=self._slope_per_cell,
+                trajectory=self._trajectory,
+                jump_time=self._jump_time,
+                landing_position=self._landing_position,
+                reward_components=self._reward_components,
+                mode=self.render_mode,
+            )
+        from mountain_bike_jump_time.scenic import ScenicRenderer
+
+        key = len(self._trajectory)
+        if self._render_key != key:
+            old = self._render_scene
+            self._render_scene = ScenicRenderer(
+                self._latent,
+                self.config,
+                self._slope_per_cell,
+                self._trajectory,
+                self._jump_time,
+                self._landing_position,
+                self._reward_components,
+                self.render_config,
+                self._done,
+            )
+            if old is not None:
+                self._render_scene.window = old.window
+                self._render_scene.clock = old.clock
+                self._render_scene._owned_display = old._owned_display
+                self._render_scene.closed = old.closed
+            self._render_key = key
+        scene = self._render_scene
+        if self.render_mode == "rgb_array":
+            return scene.frame(scene.duration)
+        start = 0 if self._render_time is None else self._render_time
+        count = max(1, int(np.ceil((scene.duration - start) * scene.options.fps)))
+        for moment in np.linspace(start, scene.duration, count + 1)[1:]:
+            if not scene.show(scene.frame(moment)):
+                break
+        self._render_time = scene.duration
+        return None
+
+    def close(self):
+        if self._render_scene is not None:
+            self._render_scene.close()
+            self._render_scene = None
+        self._render_key = None
+        self._render_time = None
 
     # ------------------------------------------------- enumeration / OPE API
     def enumerate_latents(self) -> Iterator[tuple[LatentConfig, float]]:
         """Yield every ``(omega, p(omega))`` pair.
 
-        The factorized prior is uniform on each axis, so each combination has
-        equal probability ``1 / |Omega|``.
+        The factorized prior is uniform on each axis, so each combination has equal
+        probability ``1 / |Omega|``.
         """
         cfg = self.config
         # Enumerate slope-segment sequences across every allowed segment
@@ -413,11 +484,10 @@ class MountainBikeJumpEnv(gym.Env):
     def _sample_slope_segments(self, rng: np.random.Generator, n_segs: int) -> tuple[int, ...]:
         """Sample a slope sequence with no two consecutive equal slopes.
 
-        Without this constraint, two adjacent segments can be drawn with the
-        same slope value (e.g. ``(1, 1)``), which merges them visually into
-        a single segment in the renderer. Enforcing distinct neighbours
-        guarantees that ``len(slope_segments)`` matches the number of
-        visually-distinct terrain segments.
+        Without this constraint, two adjacent segments can be drawn with the same slope
+        value (e.g. ``(1, 1)``), which merges them visually into a single segment in the
+        renderer. Enforcing distinct neighbours guarantees that ``len(slope_segments)``
+        matches the number of visually-distinct terrain segments.
         """
         choices = self.config.slope_choices
         if n_segs <= 1 or len(choices) <= 1:
@@ -456,11 +526,10 @@ class MountainBikeJumpEnv(gym.Env):
     def _is_in_gap(self, position: int) -> bool:
         """Return ``True`` if reaching ``position`` without jumping is a fall.
 
-        The agent must jump *before* the first gap: any movement that lands
-        on or past the first gap's start is treated as a fall (the bike
-        cannot magically cross the gap on the ground). The post-platform
-        region (gap + end padding) is symmetrically off-limits without a
-        successful platform landing.
+        The agent must jump *before* the first gap: any movement that lands on or past the
+        first gap's start is treated as a fall (the bike cannot magically cross the gap on
+        the ground). The post-platform region (gap + end padding) is symmetrically off-
+        limits without a successful platform landing.
         """
         gs, _ = self.first_gap_range(self._latent)
         if position >= gs:
@@ -493,12 +562,11 @@ class MountainBikeJumpEnv(gym.Env):
     ) -> RewardComponents:
         """Compute the terminal reward decomposition.
 
-        The signal is intentionally simple. The primary signal is binary:
-        landing on the platform yields ``is_missed=0``; anything else
-        (falling into either gap or jumping and missing) yields ``is_missed=1``. A small
-        ``landing_error`` term — the absolute distance from the (landing or
-        final) position to the platform center — provides a smooth guide
-        that decays as the bike lands closer to the platform.
+        The signal is intentionally simple. The primary signal is binary: landing on the
+        platform yields ``is_missed=0``; anything else (falling into either gap or jumping
+        and missing) yields ``is_missed=1``. A small ``landing_error`` term — the absolute
+        distance from the (landing or final) position to the platform center — provides a
+        smooth guide that decays as the bike lands closer to the platform.
         """
         cfg = self.config
         ps, pe = self.platform_range(latent)
@@ -534,7 +602,8 @@ class MountainBikeJumpEnv(gym.Env):
         return np.concatenate(
             [
                 np.array(
-                    [norm_pos, norm_speed, float(self._t) / cfg.track_length], dtype=np.float32
+                    [norm_pos, norm_speed, float(self._t) / cfg.track_length],
+                    dtype=np.float32,
                 ),
                 slope_window,
                 mask_window,
