@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mountain-bike-jump-time"
-version = "0.1.0"
+version = "0.2.0"
 description = "A toy Farama Gymnasium environment for OPE evaluation: stochastic jump timing problem."
 authors = ["airboxlab"]
 readme = "README.md"

@@ -17,10 +17,12 @@ from mountain_bike_jump_time.env import (
     MountainBikeJumpEnv,
     RewardComponents,
 )
+from mountain_bike_jump_time.scenic import RenderConfig
 from mountain_bike_jump_time.visualization import render_episode
 
 __all__ = [
     "EnvConfig",
+    "RenderConfig",
     "LatentConfig",
     "MountainBikeJumpEnv",
     "RewardComponents",
