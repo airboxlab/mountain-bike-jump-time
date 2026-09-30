@@ -24,7 +24,7 @@ A bike rides along a 1-D track and must decide *when* to jump in order to land o
   <picture>
     <img
       alt="replay"
-      src="/assets/images/episode_render_1.gif"
+      src="/assets/images/scenic_preview.gif"
     >
   </picture>
 </p>
@@ -91,8 +91,6 @@ For fun:
 - A tracking camera, articulated rider, rotating wheels, pedaling, dust, and landing compression.
 - Real gaps and a highlighted landing platform, with distinct success and fall animations.
 - A compact speed/progress/reward HUD; optional agent-visibility and trajectory overlays.
-
-![Scenic renderer](assets/images/scenic_preview.gif)
 
 Try it immediately from the project root (after installing the project dependencies):
 
