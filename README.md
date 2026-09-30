@@ -39,7 +39,7 @@ Developping and validating OPE estimators on real-world data can be difficult. M
 - **Fast reproducible experiments**: many independent datasets can be generated with fixed seeds to measure bias, variance, MSE, and confidence interval behavior.
 - **Clear failure analysis**: estimator failures are easier to isolate, visualize, and explain because the latent dynamics, counterfactuals, and reward components are known.
 
-Note: this environment was developped as a way to test custom estimators developped in the Triggy project. Jump time problem was framed as close as possible to optimal start time problem.
+Note: this environment was developped as a way to test custom estimators developped in the [Triggy](https://triggy.foobot.io) project. Jump time problem was framed as close as possible to optimal start time problem.
 
 ## Install
 
